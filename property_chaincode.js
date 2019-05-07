@@ -1,6 +1,6 @@
 const shim = require('fabric-shim');
 const util = require('util');
-const ethGSV = require('ethereum-gen-sign-verify');
+const EthCrypto = require('eth-crypto');
 
 var Chaincode = class {
 
@@ -91,7 +91,7 @@ var Chaincode = class {
 
     let id = args[0]
     let message = JSON.parse(args[1])
-    let signature = JSON.parse(args[2])
+    let signature = args[2]
     let identityChannelName = args[3]
 
     let property = (await stub.getState(`property_${id}`)).toString()
@@ -114,9 +114,12 @@ var Chaincode = class {
         throw new Error('Permission invalid');
       }
 
-      let isValid = ethGSV.verify(JSON.stringify(message), signature, publicKey);
+      const signer = EthCrypto.recover(
+        signature,
+        EthCrypto.hash.keccak256(JSON.stringify(message))
+      );
 
-      if(!isValid) {
+      if(signer !== publicKey) {
         throw new Error('Signature invalid');
       }
 
