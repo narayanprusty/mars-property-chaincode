@@ -1,0 +1,20 @@
+{
+	"name": "property",
+	"version": "1.0.0",
+	"description": "property chaincode implemented in node.js",
+	"engines": {
+		"node": ">=8.4.0",
+		"npm": ">=5.3.0"
+	},
+	"scripts": {
+		"start": "node property_chaincode.js"
+	},
+	"engine-strict": true,
+	"license": "Apache-2.0",
+	"dependencies": {
+		"fabric-shim": "~1.4.0",
+		"webpack": "4.30.0",
+		"webpack-cli": "3.3.2",
+		"ethereum-gen-sign-verify": "1.0.2"
+	}
+}
