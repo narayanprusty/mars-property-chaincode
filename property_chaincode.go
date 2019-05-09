@@ -271,6 +271,6 @@ func (t *PropertyChaincode) transferProperty(stub shim.ChaincodeStubInterface, a
 func main() {
 	err := shim.Start(new(PropertyChaincode))
 	if err != nil {
-		fmt.Printf("Error starting Simple chaincode: %s", err)
+		fmt.Printf("Error starting chaincode: %s", err)
 	}
 }
