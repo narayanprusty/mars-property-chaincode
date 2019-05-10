@@ -8,11 +8,9 @@ import (
 	"github.com/hyperledger/fabric/protos/msp"
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric/common/util"
-	"crypto"
-  "crypto/rsa"
-  "crypto/x509"
-  "encoding/base64"
-	"encoding/pem"
+	"github.com/decred/dcrd/dcrec/secp256k1"
+	"encoding/hex"
+	"crypto/sha256"
 )
 
 type Property struct {
@@ -38,21 +36,21 @@ func (t *PropertyChaincode) Init(stub shim.ChaincodeStubInterface) pb.Response {
 	identity, err = stub.GetCreator()
 	
 	if err != nil {
-		return shim.Error("An error occured")
+		return shim.Error(err.Error())
 	}
 
 	sId := &msp.SerializedIdentity{}
 	err = proto.Unmarshal(identity, sId)
 	
 	if err != nil {
-			return shim.Error("An error occured")
+			return shim.Error(err.Error())
 	}
 
 	nodeId := sId.Mspid
 	err = stub.PutState("propertyAuthority", []byte(nodeId))
 
 	if err != nil {
-		return shim.Error("An error occured")
+		return shim.Error(err.Error())
 	}
 
 	return shim.Success(nil)
@@ -77,7 +75,7 @@ func (t *PropertyChaincode) getCreatorIdentity(stub shim.ChaincodeStubInterface,
 	identity, err := stub.GetState("propertyAuthority")
 
 	if err != nil {
-		return shim.Error("An error occured")
+		return shim.Error(err.Error())
 	}
 
 	if identity == nil {
@@ -97,20 +95,20 @@ func (t *PropertyChaincode) addProperty(stub shim.ChaincodeStubInterface, args [
 	propertyAuthority, err := stub.GetState("propertyAuthority")
 
 	if err != nil {
-		return shim.Error("An error occured")
+		return shim.Error(err.Error())
 	}
 
 	identity, err := stub.GetCreator()
 
 	if err != nil {
-		return shim.Error("An error occured")
+		return shim.Error(err.Error())
 	}
 
 	sId := &msp.SerializedIdentity{}
 	err = proto.Unmarshal(identity, sId)
 	
 	if err != nil {
-			return shim.Error("An error occured")
+			return shim.Error(err.Error())
 	}
 
 	nodeId := sId.Mspid
@@ -137,13 +135,13 @@ func (t *PropertyChaincode) addProperty(stub shim.ChaincodeStubInterface, args [
 	newPropertyJson, err := json.Marshal(newProperty)
 
 	if err != nil {
-			return shim.Error("An error occured")
+			return shim.Error(err.Error())
 	}
 
 	err = stub.PutState("property_" + args[0], newPropertyJson)
 
 	if err != nil {
-		return shim.Error("An error occured")
+		return shim.Error(err.Error())
 	}
 
 	return shim.Success(nil)
@@ -157,7 +155,7 @@ func (t *PropertyChaincode) getProperty(stub shim.ChaincodeStubInterface, args [
 	property, err := stub.GetState("property_" + args[0])
 
 	if err != nil {
-		return shim.Error("An error occured")
+		return shim.Error(err.Error())
 	}
 
 	return shim.Success(property)
@@ -173,25 +171,19 @@ func (t *PropertyChaincode) transferProperty(stub shim.ChaincodeStubInterface, a
 	id := args[0]
 	newOwner := args[1]
 
-	signature, err := base64.StdEncoding.DecodeString(args[2])
-
-	if err != nil {
-		return shim.Error("An error occured")
-	}
-
 	identityChannelName := args[3]
 
 	identity, err := stub.GetCreator()
 
 	if err != nil {
-		return shim.Error("An error occured")
+		return shim.Error(err.Error())
 	}
 
 	sId := &msp.SerializedIdentity{}
 	err = proto.Unmarshal(identity, sId)
 	
 	if err != nil {
-		return shim.Error("An error occured")
+		return shim.Error(err.Error())
 	}
 
 	propertyAuthority, err := stub.GetState("propertyAuthority")
@@ -208,7 +200,7 @@ func (t *PropertyChaincode) transferProperty(stub shim.ChaincodeStubInterface, a
 	err = json.Unmarshal(property, &propertyStruct)
 
 	if err != nil {
-		return shim.Error("An error occured while unmarshal")
+		return shim.Error(err.Error())
 	}
 
 	chainCodeArgs := util.ToChaincodeArgs("getIdentity", propertyStruct.Owner)
@@ -222,47 +214,48 @@ func (t *PropertyChaincode) transferProperty(stub shim.ChaincodeStubInterface, a
 	err = json.Unmarshal(response.Payload, &userStruct)
 
 	if err != nil {
-		return shim.Error("User struct creation failed")
+		return shim.Error(err.Error())
 	}
 
-	userPublicKey, err := base64.StdEncoding.DecodeString(userStruct.PublicKey)
-
-	block, _ := pem.Decode(userPublicKey)
-
-	if block == nil {
-    return shim.Error("Pem decoded")
+	pubKeyBytes, err := hex.DecodeString(userStruct.PublicKey)
+	if err != nil {
+		return shim.Error(err.Error())
 	}
-	
-	userPublicKeyObj, err := x509.ParsePKIXPublicKey(block.Bytes)
+
+	pubKey, err := secp256k1.ParsePubKey(pubKeyBytes)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	sigBytes, err := hex.DecodeString(args[2])
 
 	if err != nil {
-		return shim.Error("Public key invalid")
+		return shim.Error(err.Error())
+	}
+
+	signature, err := secp256k1.ParseDERSignature(sigBytes)
+	if err != nil {
+		return shim.Error(err.Error())
 	}
 
 	message := []byte("{\"action\":\"transfer\",\"to\":\"" + newOwner + "\"}")
 
-	newhash := crypto.SHA256
-  pssh := newhash.New()
-  pssh.Write(message)
-	hashed := pssh.Sum(nil)
-	
-	rsaPublickey, _ := userPublicKeyObj.(*rsa.PublicKey)
-	
-	err = rsa.VerifyPKCS1v15(rsaPublickey, crypto.SHA256, hashed, signature)
+	messageHash := sha256.Sum256([]byte(message))
+	verified := signature.Verify(messageHash[:], pubKey)
 
-	if err != nil {
+	if (verified) {
+		propertyStruct.Owner = newOwner
+		propertyStruct.History = append(propertyStruct.History, newOwner)
+
+		propertyJson, err := json.Marshal(propertyStruct)
+
+		err = stub.PutState("property_" + id, propertyJson)
+
+		if err != nil {
+			return shim.Error(err.Error())
+		}
+	} else {
 		return shim.Error("Signature invalid")
-	}
-
-	propertyStruct.Owner = newOwner
-	propertyStruct.History = append(propertyStruct.History, newOwner)
-
-	propertyJson, err := json.Marshal(propertyStruct)
-
-	err = stub.PutState("property_" + id, propertyJson)
-
-	if err != nil {
-		return shim.Error("An error occured while writing property")
 	}
 	
 	return shim.Success(nil)
