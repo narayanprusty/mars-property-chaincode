@@ -8,6 +8,8 @@ First ssh into the EC2 that's running the container. Then access to shell of the
 
 Then follow this steps to install and instantiate the chaincode:
 
-1. Clone the chaincode repo using the command `cd /opt/gopath/src/github.com && git clone https://github.com/narayanprusty/mars-property-chaincode.git`
-2. Install using this command: `peer chaincode install -n property -v v1.0 -p github.com/mars-property-chaincode`
-3. Command to instantiate the chaincode: `peer chaincode instantiate -n property -v 1.0 -c '{"Args":[]}' -C property --cafile /home/managedblockchain-tls-chain.pem —tls`
+1. Create the directory using `mkdir /opt/gopath/src && mkdir /opt/gopath/src/github.com` if doesn't exist.
+2. Clone the chaincode repo using the command `cd /opt/gopath/src/github.com && git clone https://github.com/narayanprusty/mars-property-chaincode.git`
+3. Install using this command: `peer chaincode install -n property -v 1.0 -p github.com/mars-property-chaincode`
+4. Command to instantiate the chaincode: `peer chaincode instantiate -o $ORDERER_URL -C property -n property -v 1.0 -c '{"Args":[]}' --cafile /home/crypto/managedblockchain-tls-chain.pem --tls`
+
